@@ -6,7 +6,6 @@ import numpy as np
 
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
-from transformers import AutoTokenizer
 
 def load_dataframe(file_path: str) -> pd.DataFrame: return pd.read_parquet(file_path)
 
@@ -37,7 +36,7 @@ class MuSeDataset(Dataset):
         prompt = self.df.loc[index, self.prompt_col]
         label = self.df.loc[index, self.label_col]
 
-        if not isinstance(label, (list, tuple, np.ndarray)): raise TypeError(f"Expected label to be list or tuple, got {type(label)}")
+        if not isinstance(label, (list, tuple, np.ndarray)): raise TypeError(f"Expected label to be list, tuple or nd array, got {type(label)}")
         if len(label) != 3: raise ValueError(f"Expected label of length 3, got length of {len(label)}")
 
         encoding = self.tokenizer(
@@ -53,13 +52,3 @@ class MuSeDataset(Dataset):
 
         return item
     
-
-df = load_dataframe("./datasets/muse/modified/bert_df.parquet")
-tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-dataset = MuSeDataset(df=df, tokenizer=tokenizer)
-
-sample = dataset[0]
-print(sample.keys())
-print(sample["input_ids"].shape)
-print(sample["attention_mask"].shape)
-print(sample["labels"])
