@@ -1,10 +1,12 @@
+## Make Doc Strings Later on
+
 import pandas as pd
 import torch
 
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
-def load_dataframe(file_path: str) -> pd.DataFrame: pd.read_parquet(file_path)
+def load_dataframe(file_path: str) -> pd.DataFrame: return pd.read_parquet(file_path)
 
 class MuSeDataset(Dataset):
     def __init__(
@@ -17,15 +19,14 @@ class MuSeDataset(Dataset):
         
         self.df = df.reset_index(drop=True)
         self.tokenizer = tokenizer
-
-        if self.prompt_col not in self.df.columns:
-            raise ValueError(f"Missing prompt column: {self.prompt_col}")
         
-        if self.label_col not in self.df.columns:
-            raise ValueError(f"Missing label column: {self.label_col}")
-
         self.prompt_col = prompt_col
         self.label_col = label_col
+
+        if self.prompt_col not in self.df.columns: raise ValueError(f"Missing prompt column: {self.prompt_col}")
+        
+        if self.label_col not in self.df.columns: raise ValueError(f"Missing label column: {self.label_col}")
+
         self.max_len = max_len
 
     def __len__(self) -> int : return len(self.df)
@@ -34,8 +35,8 @@ class MuSeDataset(Dataset):
         prompt = self.df.loc[index, self.prompt_col]
         label = self.df.loc[index, self.label_col]
 
-        if len(label) != 3: 
-            raise ValueError(f"Expected label of length 3, got length of {len(label)}")
+        if not isinstance(label, (list, tuple)): raise TypeError(f"Expected label to be list or tuple, got {type(label)}")
+        if len(label) != 3: raise ValueError(f"Expected label of length 3, got length of {len(label)}")
 
         encoding = self.tokenizer(
             prompt,
