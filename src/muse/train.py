@@ -2,11 +2,13 @@ import torch
 import torch.nn as nn
 import configparser
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from transformers import AutoTokenizer
 from torch.optim import AdamW
+from tqdm import tqdm
 
 from dataset import load_dataframe, build_dataset, build_loader
 from model import BertVADRegressor
@@ -26,12 +28,12 @@ train_df, temp_df = train_test_split(
 )
 
 val_df, test_df = train_test_split(
-    df,
+    temp_df,
     test_size=0.5,
     random_state=42
 )
 
-tokenizer = AutoTokenizer.from_pretrained("bert-large-uncased")
+tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
 # Datasets
 datasets = {
     "train" : build_dataset(train_df, tokenizer),
@@ -48,7 +50,7 @@ dataloaders = {
 
 # Model Loading
 
-model = BertVADRegressor().to(device=device)
+model = BertVADRegressor(model_name=config["model"]["name"]).to(device=device)
 
 for param in model.bert.parameters():
     param.requires_grad = False
@@ -83,13 +85,16 @@ def train_epoch(
         dataloader : DataLoader,
         criterion : nn.Module,
         optimiser : AdamW,
-        device: str) -> float:
+        device: torch.device) -> float:
     
     model.train()
 
     total_loss = 0.0
 
-    for batch in dataloader:
+    progress_bar = tqdm(dataloader, desc="Training", leave=False)
+
+
+    for batch in progress_bar:
         optimiser.zero_grad()
 
         loss = forward_batch(
@@ -111,20 +116,72 @@ def validate_epoch(
         model : BertVADRegressor,
         dataloader : DataLoader,
         criterion : nn.Module,
-        device: str) -> float:
+        device: torch.device) -> float:
     
     model.eval()
     total_loss = 0.0
 
+    progress_bar = tqdm(dataloader, desc="Validation", leave=False)
+
+
     with torch.no_grad():
-        for batch in dataloader:
+        for batch in progress_bar:
             loss = forward_batch(
-            model=model,
-            batch=batch,
-            criterion=criterion,
-            device=device
-        )
-        
-        total_loss += loss.item()
+                model=model,
+                batch=batch,
+                criterion=criterion,
+                device=device
+            )
+
+            total_loss += loss.item()
     
     return total_loss / len(dataloader)
+
+
+epochs = config.getint("train", "epochs")
+
+best_val_loss = float("-inf")
+
+train_losses = []
+val_losses = []
+
+for epoch in range(epochs):
+    train_loss, val_loss = train_epoch(
+        model=model,
+        dataloader=dataloaders["train"],
+        criterion=criterion,
+        optimiser=optimiser,
+        device=device
+    ), validate_epoch(
+        model=model,
+        dataloader=dataloaders["val"],
+        criterion=criterion,
+        device=device
+    )
+
+    print(
+        f"Epoch {epoch + 1}/{epochs} | "
+        f"Train Loss: {train_loss:.4f} | "
+        f"Val Loss: {val_loss:.4f}"
+    )
+
+    train_losses.append(train_loss)
+    val_losses.append(val_loss)
+
+    if val_loss < best_val_loss:
+        best_val_loss = val_loss
+        torch.save(model.state_dict(), "checkpoints\\muse\\bert-large-uncased-saves\\best_bert_vad.pt")
+
+
+plt.figure(figsize=(10, 6))
+plt.plot(range(1, epochs + 1), train_losses, label="Training Loss")
+plt.plot(range(1, epochs + 1), val_losses, label="Validation Loss")
+
+plt.title("Training vs Validation Loss")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.legend()
+plt.tight_layout()
+
+plt.savefig("plots/muse/train/training_validation_loss.png", dpi=300, bbox_inches="tight")
+plt.savefig("plots/muse/train/bert_vad_loss_curve.png", dpi=300, bbox_inches="tight")
