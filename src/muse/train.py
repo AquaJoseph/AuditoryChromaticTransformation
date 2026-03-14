@@ -3,17 +3,24 @@ import torch.nn as nn
 import configparser
 import pandas as pd
 import matplotlib.pyplot as plt
+import warnings
 
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from transformers import AutoTokenizer
+from transformers.utils import logging as hf_logging
 from torch.optim import AdamW
 from tqdm import tqdm
 
 from dataset import load_dataframe, build_dataset, build_loader
 from model import BertVADRegressor
 
+warnings.filterwarnings("ignore")
+hf_logging.set_verbosity_error()
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
 
 config = configparser.ConfigParser()
 config.read("src\\muse\\config.cfg")
