@@ -138,6 +138,7 @@ def validate_epoch(
     return total_loss / len(dataloader)
 
 
+unfreeze_epoch = config.getint("train", "unfreeze_epoch")
 epochs = config.getint("train", "epochs")
 
 best_val_loss = float("-inf")
@@ -146,6 +147,17 @@ train_losses = []
 val_losses = []
 
 for epoch in range(epochs):
+
+    if epoch == unfreeze_epoch:
+        for param in model.bert.parameters():
+            param.requires_grad = True
+ 
+        optimiser = AdamW(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=config.getfloat("train", "learning_rate")
+        )
+
+
     train_loss, val_loss = train_epoch(
         model=model,
         dataloader=dataloaders["train"],
@@ -183,5 +195,9 @@ plt.ylabel("Loss")
 plt.legend()
 plt.tight_layout()
 
-plt.savefig("plots/muse/train/training_validation_loss.png", dpi=300, bbox_inches="tight")
-plt.savefig("plots/muse/train/bert_vad_loss_curve.png", dpi=300, bbox_inches="tight")
+plt.savefig("plots/muse/train/"+
+            f"training_validation_loss_over_{epochs}" +
+            f"_epochs_with_lr_{config.getint("train", "learning_rate")}_and_{config.getint("train", "batch_size")}.png", dpi=300, bbox_inches="tight")
+
+plt.savefig(f"plots/muse/train/bert_vad_loss_curve_over_{epochs}" +
+            f"_epochs_with_lr_{config.getint("train", "learning_rate")}_and_{config.getint("train", "batch_size")}.png", dpi=300, bbox_inches="tight")
