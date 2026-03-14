@@ -21,7 +21,6 @@ hf_logging.set_verbosity_error()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-
 config = configparser.ConfigParser()
 config.read("src\\muse\\config.cfg")
 
@@ -178,6 +177,8 @@ for epoch in range(epochs):
         device=device
     )
 
+    if val_loss > best_val_loss: best_val_loss = val_loss
+
     print(
         f"Epoch {epoch + 1}/{epochs} | "
         f"Train Loss: {train_loss:.4f} | "
@@ -192,6 +193,9 @@ for epoch in range(epochs):
         torch.save(model.state_dict(), "checkpoints\\muse\\bert-large-uncased-saves\\best_bert_vad.pt")
 
 
+torch.save(model.state_dict(), "checkpoints\\muse\\bert-large-uncased-saves\\final_bert_vad.pt")
+
+
 plt.figure(figsize=(10, 6))
 plt.plot(range(1, epochs + 1), train_losses, label="Training Loss")
 plt.plot(range(1, epochs + 1), val_losses, label="Validation Loss")
@@ -204,7 +208,7 @@ plt.tight_layout()
 
 plt.savefig("plots/muse/train/"+
             f"training_validation_loss_over_{epochs}" +
-            f"_epochs_with_lr_{config.getint("train", "learning_rate")}_and_{config.getint("train", "batch_size")}.png", dpi=300, bbox_inches="tight")
+            f"_epochs_with_lr_{config.getfloat("train", "learning_rate")}_and_{config.getint("train", "batch_size")}.png", dpi=300, bbox_inches="tight")
 
 plt.savefig(f"plots/muse/train/bert_vad_loss_curve_over_{epochs}" +
-            f"_epochs_with_lr_{config.getint("train", "learning_rate")}_and_{config.getint("train", "batch_size")}.png", dpi=300, bbox_inches="tight")
+            f"_epochs_with_lr_{config.getfloat("train", "learning_rate")}_and_{config.getint("train", "batch_size")}.png", dpi=300, bbox_inches="tight")
