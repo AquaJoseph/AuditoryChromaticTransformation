@@ -4,10 +4,9 @@ import pandas as pd
 import torch
 import numpy as np
 
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
-def load_dataframe(file_path: str) -> pd.DataFrame: return pd.read_parquet(file_path)
 
 class MuSeDataset(Dataset):
     def __init__(
@@ -51,4 +50,21 @@ class MuSeDataset(Dataset):
         item["labels"] = torch.tensor(label, dtype=torch.float32)
 
         return item
-    
+
+def load_dataframe(file_path: str) -> pd.DataFrame: return pd.read_parquet(path=file_path)
+
+def build_dataset(
+        df : pd.DataFrame, 
+        tokenizer : PreTrainedTokenizer | PreTrainedTokenizerFast) -> MuSeDataset: 
+     return MuSeDataset(
+            df=df, 
+            tokenizer=tokenizer)
+
+def build_loader(
+        dataset : MuSeDataset, 
+        batch_size : int, 
+        shuffle : bool) -> DataLoader : 
+     return DataLoader(
+            dataset=dataset, 
+            batch_size=batch_size, 
+            shuffle=shuffle)
