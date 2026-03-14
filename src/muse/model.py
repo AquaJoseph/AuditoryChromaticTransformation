@@ -17,7 +17,13 @@ class BertVADRegressor(nn.Module):
 
         self.regressor = nn.Sequential(
             nn.Linear(self.bert.config.hidden_size, hidden_dim),
-
+            nn.BatchNorm1d(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, output_dim)
         )
     
     def forward(
