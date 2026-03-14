@@ -29,11 +29,11 @@ class BertVADRegressor(nn.Module):
     def forward(
         self,
         input_ids : torch.Tensor,
-        atten_mask : torch.Tensor)-> torch.Tensor:
+        attention_mask : torch.Tensor)-> torch.Tensor:
 
         outputs = self.bert(
             input_ids=input_ids,
-            attention_mask=atten_mask
+            attention_mask=attention_mask
         )
 
         pooled_output = outputs.pooler_output
