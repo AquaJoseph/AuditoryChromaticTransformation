@@ -14,7 +14,7 @@ from model import BertVADRegressor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 config = configparser.ConfigParser()
-config.read("config.cfg")
+config.read("src\\muse\\config.cfg")
 
 df = load_dataframe("datasets/muse/modified/bert_df.parquet")
 
@@ -47,3 +47,7 @@ dataloaders = {
 }
 
 
+batch = next(iter(dataloaders["train"]))
+print(batch["input_ids"].shape)
+print(batch["attention_mask"].shape)
+print(batch["labels"].shape)
