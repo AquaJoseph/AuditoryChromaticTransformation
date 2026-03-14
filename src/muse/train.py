@@ -46,8 +46,85 @@ dataloaders = {
     "test" : build_loader(datasets["test"], config.getint("train", "batch_size"), False)
 }
 
+# Model Loading
 
-batch = next(iter(dataloaders["train"]))
-print(batch["input_ids"].shape)
-print(batch["attention_mask"].shape)
-print(batch["labels"].shape)
+model = BertVADRegressor().to(device=device)
+
+for param in model.bert.parameters():
+    param.requires_grad = False
+
+criterion = nn.MSELoss()
+
+optimiser = AdamW(
+    filter(lambda p: p.requires_grad, model.parameters()),
+    lr= config.getfloat("train", "learning_rate")
+)
+
+
+def forward_batch(
+        model: BertVADRegressor,
+        batch: dict[str, torch.Tensor],
+        criterion: nn.Module,
+        device: torch.device) -> torch.Tensor:
+    in_ids = batch["input_ids"].to(device)
+    atten_mask = batch["attention_mask"].to(device)
+    target = batch["labels"].to(device)
+
+    pred = model(
+    input_ids=in_ids,
+    attention_mask=atten_mask
+    )
+
+    return criterion(pred, target)
+
+
+def train_epoch(
+        model : BertVADRegressor,
+        dataloader : DataLoader,
+        criterion : nn.Module,
+        optimiser : AdamW,
+        device: str) -> float:
+    
+    model.train()
+
+    total_loss = 0.0
+
+    for batch in dataloader:
+        optimiser.zero_grad()
+
+        loss = forward_batch(
+            model=model,
+            batch=batch,
+            criterion=criterion,
+            device=device
+        )
+
+        loss.backward()
+        optimiser.step()
+
+        total_loss += loss.item()
+
+    return total_loss / len(dataloader)
+
+
+def validate_epoch(
+        model : BertVADRegressor,
+        dataloader : DataLoader,
+        criterion : nn.Module,
+        device: str) -> float:
+    
+    model.eval()
+    total_loss = 0.0
+
+    with torch.no_grad():
+        for batch in dataloader:
+            loss = forward_batch(
+            model=model,
+            batch=batch,
+            criterion=criterion,
+            device=device
+        )
+        
+        total_loss += loss.item()
+    
+    return total_loss / len(dataloader)
