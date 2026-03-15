@@ -177,7 +177,6 @@ for epoch in range(epochs):
         device=device
     )
 
-    if val_loss > best_val_loss: best_val_loss = val_loss
 
     print(
         f"Epoch {epoch + 1}/{epochs} | "
@@ -191,6 +190,8 @@ for epoch in range(epochs):
     if val_loss < best_val_loss:
         best_val_loss = val_loss
         torch.save(model.state_dict(), "checkpoints\\muse\\bert-large-uncased-saves\\best_bert_vad.pt")
+
+
 
 
 torch.save(model.state_dict(), "checkpoints\\muse\\bert-large-uncased-saves\\final_bert_vad.pt")
