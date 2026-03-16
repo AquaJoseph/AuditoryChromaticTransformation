@@ -14,7 +14,7 @@ class MuSeDataset(Dataset):
             df : pd.DataFrame,
             tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
             prompt_col: str = "prompt",
-            label_col: str = "vad_01",
+            label_col: str = "vad",
             max_len: int = 128) -> None:
         
         self.df = df.reset_index(drop=True)
