@@ -12,8 +12,8 @@ from transformers.utils import logging as hf_logging
 from torch.optim import AdamW
 from tqdm import tqdm
 
-from dataset import load_dataframe, build_dataset, build_loader
-from model import BertVADRegressor
+from .dataset import load_dataframe, build_dataset, build_loader
+from .model import BertVADRegressor
 
 warnings.filterwarnings("ignore")
 hf_logging.set_verbosity_error()
@@ -46,6 +46,7 @@ datasets = {
     "val": build_dataset(val_df, tokenizer),
     "test" : build_dataset(test_df, tokenizer)
 }
+
 
 # Loaders
 dataloaders = {
@@ -209,7 +210,4 @@ plt.tight_layout()
 
 plt.savefig("plots/muse/train/"+
             f"training_validation_loss_over_{epochs}" +
-            f"_epochs_with_lr_{config.getfloat("train", "learning_rate")}_and_{config.getint("train", "batch_size")}.png", dpi=300, bbox_inches="tight")
-
-plt.savefig(f"plots/muse/train/bert_vad_loss_curve_over_{epochs}" +
-            f"_epochs_with_lr_{config.getfloat("train", "learning_rate")}_and_{config.getint("train", "batch_size")}.png", dpi=300, bbox_inches="tight")
+            f"_epochs_with_lr_{config.getfloat("train", "learning_rate")}_and_batch_size_{config.getint("train", "batch_size")}.png", dpi=300, bbox_inches="tight")
