@@ -1,15 +1,19 @@
 import torch
 import pandas as pd
 import configparser
+import warnings
 
 from tqdm import tqdm
 from transformers import AutoTokenizer
-from torch.utils.data import Dataset, DataLoader
+from transformers.utils import logging as hf_logging
 
 from src.muse.model import BertVADRegressor
 from src.muse.dataset import load_dataframe
 
-from src.fma.dataset import FMAInferenceDataset, build_dataset, build_loader
+from .dataset import build_dataset, build_loader
+
+warnings.filterwarnings("ignore")
+hf_logging.set_verbosity_error()
 
 
 config = configparser.ConfigParser()
@@ -34,8 +38,9 @@ model.load_state_dict(
 )
 
 preds = []
+model = model.to(device)
 
-
+model.eval()
 with torch.no_grad():
     for batch in tqdm(inference_loader, desc="Running Inference on FMA Dataset"):
         input_ids = batch["input_ids"].to(device)
@@ -59,6 +64,13 @@ fma_df["vad_pred_01"] = fma_df[
     ["valence_pred_01", "arousal_pred_01", "dominance_pred_01"]
 ].values.tolist()
 
-fma_df["vad_pred_01"] = fma_df[
-    ["valence_pred_01", "arousal_pred_01", "dominance_pred_01"]
-].values.tolist()
+
+fma_df.to_csv(
+    "datasets/fma/fma_metadata/modified/fma_vad_predictions.csv",
+    index=False
+)
+
+fma_df.to_parquet(
+    "datasets/fma/fma_metadata/modified/fma_vad_predictions.parquet",
+    index=False
+)
