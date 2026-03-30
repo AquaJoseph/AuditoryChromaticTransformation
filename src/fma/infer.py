@@ -19,7 +19,7 @@ hf_logging.set_verbosity_error()
 config = configparser.ConfigParser()
 config.read("src\\fma\\config.cfg")
 
-fma_df = load_dataframe("datasets/fma/fma_metadata/modified/bert_full_prompt_df.parquet")
+fma_df = load_dataframe("datasets/fma/fma_metadata/modified/full_fma_vad_predictions_group.parquet")
 
 
 tokeniser = AutoTokenizer.from_pretrained(config["model"]["name"])
@@ -34,7 +34,7 @@ model = BertVADRegressor(
 )
 
 model.load_state_dict(
-    torch.load("checkpoints\\muse\\bert-large-uncased-saves\\full_dataset_final_bert_vad.pt", map_location=device)
+    torch.load("checkpoints\\muse\\bert-large-uncased-saves\\final_bert_vad.pt", map_location=device)
 )
 
 preds = []
@@ -53,24 +53,24 @@ with torch.no_grad():
 
         preds.extend(pred.cpu().tolist())
 
-fma_df["vad_pred_01"] = preds
+fma_df["vad_pred"] = preds
 
 fma_df[["valence_pred", "arousal_pred", "dominance_pred"]] = pd.DataFrame(
     preds,
     index=fma_df.index
 )
 
-fma_df["vad_pred_01"] = fma_df[
+fma_df["vad_pred"] = fma_df[
     ["valence_pred", "arousal_pred", "dominance_pred"]
 ].values.tolist()
 
 
 fma_df.to_csv(
-    "datasets/fma/fma_metadata/modified/full_fma_vad_predictions.csv",
+    "datasets/fma/fma_metadata/modified/full_fma_vad_predictions_group.csv",
     index=False
 )
 
 fma_df.to_parquet(
-    "datasets/fma/fma_metadata/modified/full_fma_vad_predictions.parquet",
+    "datasets/fma/fma_metadata/modified/full_fma_vad_predictions_group.parquet",
     index=False
 )
