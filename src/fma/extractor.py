@@ -12,26 +12,27 @@ def extract_mel_spectrogram(
         fmax : float | None = None, 
         power: float = 2.0, 
         n_fft: int = 2048, 
-        sample_rate: int = 22050) -> np.ndarray:
+        sample_rate: int = 22050) -> np.ndarray | None:
         '''
         Do Doc String
         '''
 
-        waveform, sr = rosa.load(audio_path, sr=sample_rate, mono= True)
+        try: 
+                waveform, sr = rosa.load(audio_path, sr=sample_rate, mono= True)
 
-        mel_spec = rosa.feature.melspectrogram(
-                y = waveform,
-                sr = sr,
-                n_fft=n_fft,
-                hop_length=hop_length,
-                n_mels=n_mels,
-                fmin=fmin,
-                fmax=fmax,
-                power=power
-        )
+                mel_spec = rosa.feature.melspectrogram(
+                        y = waveform,
+                        sr = sr,
+                        n_fft=n_fft,
+                        hop_length=hop_length,
+                        n_mels=n_mels,
+                        fmin=fmin,
+                        fmax=fmax,
+                        power=power
+                )
 
-        log_mel_spec = rosa.power_to_db(mel_spec, ref=np.max).astype(np.float32)
-        
-
-        return log_mel_spec
+                log_mel_spec = rosa.power_to_db(mel_spec, ref=1.0).astype(np.float32)
+                return log_mel_spec
+        except Exception as e:
+                return None
 
