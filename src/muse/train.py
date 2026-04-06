@@ -1,213 +1,80 @@
 import torch
 import torch.nn as nn
-import configparser
-import pandas as pd
-import matplotlib.pyplot as plt
-import warnings
-
 from torch.utils.data import DataLoader
-from sklearn.model_selection import train_test_split
-from transformers import AutoTokenizer
-from transformers.utils import logging as hf_logging
-from torch.optim import AdamW
-from tqdm import tqdm
+import pandas as pd
+from src.muse.dataset import MuSeDataset
+from src.muse.models.transfromer import MusicTransformer
+from src.muse.collate import collate_fn
 
-from .dataset import load_dataframe, build_dataset, build_loader
-from .model import BertVADRegressor
+import os
 
-warnings.filterwarnings("ignore")
-hf_logging.set_verbosity_error()
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+df = pd.read_csv("datasets\\muse\\raw\\muse_v3.csv")
+audio_root = "datasets\\muse\\audio"
+
+
+dataset = MuSeDataset(df=df, audio_root=audio_root)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+print(device)
 
-config = configparser.ConfigParser()
-config.read("src\\muse\\config.cfg")
-
-df = load_dataframe("datasets/muse/modified/bert_df.parquet")
-
-# Split
-train_df, temp_df = train_test_split(
-    df,
-    test_size=config.getfloat("data", "test_split"),
-    random_state=42
-)
-
-val_df, test_df = train_test_split(
-    temp_df,
-    test_size=0.5,
-    random_state=42
-)
-
-tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
-# Datasets
-datasets = {
-    "train" : build_dataset(train_df, tokenizer),
-    "val": build_dataset(val_df, tokenizer),
-    "test" : build_dataset(test_df, tokenizer)
-}
-
-
-# Loaders
-dataloaders = {
-    "train" : build_loader(datasets["train"], config.getint("train", "batch_size"), True),
-    "val": build_loader(datasets["val"], config.getint("train", "batch_size"), False),
-    "test" : build_loader(datasets["test"], config.getint("train", "batch_size"), False)
-}
-
-# Model Loading
-
-model = BertVADRegressor(model_name=config["model"]["name"]).to(device=device)
-
-for param in model.bert.parameters():
-    param.requires_grad = False
+model = MusicTransformer(
+    embedding_dim=128,
+    num_heads=4,
+    num_layers=2,
+    max_tokens=2048
+).to(device)
 
 criterion = nn.MSELoss()
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
 
-optimiser = AdamW(
-    filter(lambda p: p.requires_grad, model.parameters()),
-    lr= config.getfloat("train", "learning_rate")
+train_loader = DataLoader(
+    dataset,
+    batch_size=1,
+    shuffle=True,
+    collate_fn=collate_fn,
 )
 
-
-def forward_batch(
-        model: BertVADRegressor,
-        batch: dict[str, torch.Tensor],
-        criterion: nn.Module,
-        device: torch.device) -> torch.Tensor:
-    in_ids = batch["input_ids"].to(device)
-    atten_mask = batch["attention_mask"].to(device)
-    target = batch["labels"].to(device)
-
-    pred = model(
-    input_ids=in_ids,
-    attention_mask=atten_mask
-    )
-
-    return criterion(pred, target)
-
-
-def train_epoch(
-        model : BertVADRegressor,
-        dataloader : DataLoader,
-        criterion : nn.Module,
-        optimiser : AdamW,
-        device: torch.device) -> float:
-    
+def train_one_epoch(model, loader, criterion, optimizer, device):
     model.train()
-
     total_loss = 0.0
+    total_samples = 0
 
-    progress_bar = tqdm(dataloader, desc="Training", leave=False)
+    for batch in loader:
+        if batch is None:
+            continue
 
+        tokens = batch["tokens"].to(device)                 # [B, N, 1, 128, 45]
+        token_mask = batch["token_mask"].to(device)         # [B, N]
+        global_features = batch["global_features"].to(device)  # [B, 15]
+        vad = batch["vad"].to(device)                       # [B, 3]
 
-    for batch in progress_bar:
-        optimiser.zero_grad()
+        optimizer.zero_grad()
 
-        loss = forward_batch(
-            model=model,
-            batch=batch,
-            criterion=criterion,
-            device=device
-        )
+        preds = model(tokens, token_mask, global_features)  # [B, 3]
+        loss = criterion(preds, vad)
 
         loss.backward()
-        optimiser.step()
+        optimizer.step()
 
-        total_loss += loss.item()
+        batch_size = vad.size(0)
+        total_loss += loss.item() * batch_size
+        total_samples += batch_size
 
-    return total_loss / len(dataloader)
-
-
-def validate_epoch(
-        model : BertVADRegressor,
-        dataloader : DataLoader,
-        criterion : nn.Module,
-        device: torch.device) -> float:
-    
-    model.eval()
-    total_loss = 0.0
-
-    progress_bar = tqdm(dataloader, desc="Validation", leave=False)
+    return total_loss / max(total_samples, 1)
 
 
-    with torch.no_grad():
-        for batch in progress_bar:
-            loss = forward_batch(
-                model=model,
-                batch=batch,
-                criterion=criterion,
-                device=device
-            )
+num_epochs = 10
 
-            total_loss += loss.item()
-    
-    return total_loss / len(dataloader)
-
-
-unfreeze_epoch = config.getint("train", "unfreeze_epoch")
-epochs = config.getint("train", "epochs")
-
-best_val_loss = float("-inf")
-
-train_losses = []
-val_losses = []
-
-for epoch in range(epochs):
-
-    if epoch == unfreeze_epoch:
-        for param in model.bert.parameters():
-            param.requires_grad = True
- 
-        optimiser = AdamW(
-            filter(lambda p: p.requires_grad, model.parameters()),
-            lr=config.getfloat("train", "learning_rate")
-        )
-
-
-    train_loss, val_loss = train_epoch(
+for epoch in range(num_epochs):
+    train_loss = train_one_epoch(
         model=model,
-        dataloader=dataloaders["train"],
+        loader=train_loader,
         criterion=criterion,
-        optimiser=optimiser,
-        device=device
-    ), validate_epoch(
-        model=model,
-        dataloader=dataloaders["val"],
-        criterion=criterion,
-        device=device
+        optimizer=optimizer,
+        device=device,
     )
 
-
-    print(
-        f"Epoch {epoch + 1}/{epochs} | "
-        f"Train Loss: {train_loss:.4f} | "
-        f"Val Loss: {val_loss:.4f}"
-    )
-
-    train_losses.append(train_loss)
-    val_losses.append(val_loss)
-
-    if val_loss < best_val_loss:
-        best_val_loss = val_loss
-        torch.save(model.state_dict(), "checkpoints\\muse\\bert-large-uncased-saves\\best_bert_vad.pt")
-
-
-
-
-torch.save(model.state_dict(), "checkpoints\\muse\\bert-large-uncased-saves\\final_bert_vad.pt")
-
-
-plt.figure(figsize=(10, 6))
-plt.plot(range(1, epochs + 1), train_losses, label="Training Loss")
-plt.plot(range(1, epochs + 1), val_losses, label="Validation Loss")
-
-plt.title("Training vs Validation Loss")
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.legend()
-plt.tight_layout()
-
-plt.savefig("plots/muse/train/"+
-            f"training_validation_loss_over_{epochs}" +
-            f"_epochs_with_lr_{config.getfloat("train", "learning_rate")}_and_batch_size_{config.getint("train", "batch_size")}.png", dpi=300, bbox_inches="tight")
+    print(f"Epoch {epoch + 1}/{num_epochs} | Train Loss: {train_loss:.4f}")
