@@ -1,12 +1,15 @@
 import torch
 import torch.nn.functional as F
+import random as R
 
 from typing import List, Tuple
 
-def build_mel_sequence(
+def mel_tokenizer(
         mel: torch.Tensor,
         token_width : int = 45,
-        stride : int = 15
+        stride : int = 15,
+        max_tokens : int | None = 128,
+        random_crop : bool = True
 ) -> torch.Tensor:
     """
     Doc String to do
@@ -17,6 +20,11 @@ def build_mel_sequence(
     _, time_steps = mel.shape
 
     tokens = []
+
+    if time_steps < token_width: 
+        pad = token_width - time_steps
+        chunk = F.pad (mel, (0,pad))
+        return chunk.unsequeeze(0)
 
 
     for start in range(0, time_steps, stride):
@@ -32,28 +40,13 @@ def build_mel_sequence(
 
         tokens.append(chunk)
 
-    return torch.stack(tokens, dim=0)
+    tokens = torch.stack(tokens, dim=0)
 
+    if max_tokens != None and tokens.shape[0] > max_tokens:
+        if random_crop:
+            start = R.randint(0, tokens.shape[0] - max_tokens)
+            tokens = tokens[start:start + max_tokens]
+        else:
+            tokens = tokens[:max_tokens]
 
-def collate_mel_sequence(
-        batch : List[Tuple[torch.Tensor, torch.Tensor]],
-        token_width : int = 45,
-        stride : int = 15
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """
-    Do Doc String Later 
-    """
-
-    token_sequences = []
-    labels = []
-
-    for x, t in batch:
-        tokens = build_mel_sequence(
-            x,
-            token_width=token_width,
-            stride=stride
-        )
-        token_sequences.append(tokens)
-        labels.append(t)
-
-    
+    return tokens
