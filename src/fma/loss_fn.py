@@ -39,11 +39,12 @@ class AffinityLoss(nn.Module):
         targets: torch.Tensor
     ) -> torch.Tensor:
         embeddings = F.normalize(embeddings, dim=-1)
+        targets = F.normalize(targets, dim=-1)
 
         pred_affinity = embeddings @ embeddings.T   # [N, N]
         true_affinity = targets @ targets.T         # [N, N]
 
-        return torch.norm(pred_affinity - true_affinity, p="fro") ** 2
+        return (pred_affinity - true_affinity).pow(2).mean()
     
 class HybridLoss(nn.Module):
     def __init__(
