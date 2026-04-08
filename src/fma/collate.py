@@ -1,54 +1,38 @@
 import torch
-from src.fma.tokenizer import build_mel_sequence
-from typing import List, Tuple
+from typing import List
 
-def collate_mel_sequence(
-        batch : List[Tuple[torch.Tensor, torch.Tensor]],
-        token_width : int = 45,
-        stride : int = 15
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def collate_token_sequence(batch: List[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
     """
-    Do Doc String Later 
+    Do Doc String
     """
 
-    token_sequences = []
-    labels = []
+    max_len = max(seq.shape[0] for seq in batch)
 
-    for x, t in batch:
-        tokens = build_mel_sequence(
-            x,
-            token_width=token_width,
-            stride=stride
-        )
-        token_sequences.append(tokens)
-        labels.append(t)
+    padded, masks = [], []
 
-    max_seq_len = max(s.shape[0] for s in token_sequences)
-    n_mels = token_sequences[0].shape[1]
+    for seq in batch:
+        token, bins, width = seq.shape
+        pad_len = max_len - token
 
-    padded_batch = []
-    masks = []
+        if pad_len > 0:
+            pad = torch.full((pad_len, bins, width), -80.0 , dtype=seq.dtype)
+            seq = torch.cat([seq,pad], dim=0)
+        
+        mask = torch.cat([
+            torch.ones(token, dtype=torch.bool),
+            torch.zeros(pad_len, dtype=torch.bool)
+        ])
 
-
-    for s in token_sequences:
-        seq_len = s.shape[0]
-        pad_len  =  max_seq_len - seq_len
-
-        if pad_len > 0: 
-            pad = torch.zeros(
-                pad_len,
-                n_mels,
-                token_width,
-                dtype= s.dtype
-            )
-
-            s = torch.cat([s, pad], dim=0)
-
-        mask = torch.zeros(max_seq_len, dtype=torch.bool)
-
-        mask[:seq_len] = True
-
+        padded.append(seq)
         masks.append(mask)
-
-    padded_tokens = torch.stack(padded_batch, dim=0)
+    
+    padded_tokens = torch.stack(padded, dim=0)
     attention_mask = torch.stack(masks, dim=0)
+
+    return padded_tokens, attention_mask
+
+
+
+
+
+
