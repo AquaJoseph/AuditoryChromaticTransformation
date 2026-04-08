@@ -40,12 +40,12 @@ class TokenEncoder(nn.Module):
         if channels is None:
             channels = [1,16,32,64]
         
-        self.conv_net = self._build_stack = (channels)
+        self.conv_net = self._build_stack(channels)
 
         dummy = torch.zeros(1, 1, 128, 45)
 
         with torch.no_grad():
-            out = self.conv(dummy)
+            out = self.conv_net(dummy)
             self.flatten_dim = out.view(1, -1).shape[1]
 
         self.projection = nn.Linear(self.flatten_dim, d_model) 
@@ -70,11 +70,58 @@ class TokenEncoder(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, S, F, W = x.shape
         x = x.view(B * S, 1, F, W)
-        x = self.conv(x)
+        x = self.conv_net(x)
         x = x.flatten(start_dim=1)
         x = self.projection(x)
         x = x.view(B, S, -1)
 
         return x
 
+class MusicTransformerEncoder(nn.Module):
+    def __init__(
+        self,
+        d_model: int = 128,
+        nhead: int = 8,
+        num_layers: int = 4,
+        dim_feedforward: int = 256,
+        dropout: float = 0.1,
+        channels=None
+    ) -> None:
+        super().__init__()
 
+        self.token_encoder = TokenEncoder(
+            d_model=d_model,
+            channels=channels
+        )
+
+        self.pos_encoding = PositionalEncoding(d_model=d_model)
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            batch_first=True
+        )
+
+        self.transformer = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=num_layers
+        )
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        attention_mask: torch.Tensor
+    ) -> torch.Tensor:
+        
+        x = self.token_encoder(x)          
+        x = self.positional_encoding(x)
+        padding_mask = ~attention_mask
+        x = self.transformer(
+            x,
+            src_key_padding_mask=padding_mask
+        )
+        
+        return x
+        
