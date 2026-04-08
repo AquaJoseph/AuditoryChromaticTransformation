@@ -116,12 +116,12 @@ class MusicTransformerEncoder(nn.Module):
     ) -> torch.Tensor:
         
         x = self.token_encoder(x)          
-        x = self.positional_encoding(x)
+        x = self.pos_encoding(x)
         padding_mask = ~attention_mask
         x = self.transformer(
             x,
             src_key_padding_mask=padding_mask
         )
-        
+
         return x
         
