@@ -203,11 +203,11 @@ def main() -> None:
         "best_val_loss": best_val_loss,
         "test_loss": test_loss,
         "epochs": epochs,
-        "batch_size": batch_size,
-        "learning_rate": learning_rate,
-        "hidden_dim": hidden_dim,
-        "depth": depth,
-        "dropout": dropout,
+        "batch_size": settings["batch_size"],
+        "learning_rate": settings["learning_rate"],
+        "hidden_dim": settings["hidden_dim"],
+        "depth": settings["depth"],
+        "dropout": settings["dropout"],
     }
 
     log_path = LOG_DIR / "vad_to_color_train_log.json"
