@@ -77,7 +77,6 @@ final_df = (
 )
 
 SAVE_PATH = ROOT / "datasets" / "nrc-emo-color" / "vad_rgb_dataset.csv"
-
 SAVE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 final_df.to_csv(SAVE_PATH, index=False)
