@@ -10,7 +10,7 @@ from transformers.utils import logging as hf_logging
 from src.muse.model import BertVADRegressor
 from src.muse.dataset import load_dataframe
 
-from .infer_dataset import build_dataset, build_loader
+from .prompt_dataset import build_dataset, build_loader
 
 warnings.filterwarnings("ignore")
 hf_logging.set_verbosity_error()
@@ -30,7 +30,7 @@ inference_loader = build_loader(inference_dataset, batch_size=config.getint("inf
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = BertVADRegressor(
-    model_name=config["model"]["name"]
+    model_name=config["bert"]["name"]
 )
 
 model.load_state_dict(
