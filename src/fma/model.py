@@ -2,6 +2,8 @@ import math
 import torch
 import torch.nn as nn
 
+from src.fma.loss_fn import masked_mean_pool
+
 
 class PositionalEncoding(nn.Module):
     def __init__(
@@ -109,6 +111,12 @@ class MusicTransformerEncoder(nn.Module):
             num_layers=num_layers
         )
 
+        self.vad_head = nn.Sequential(
+            nn.Linear(d_model, 256),
+            nn.ReLU(),
+            nn.Linear(256, 3)
+        )
+
     def forward(
         self,
         x: torch.Tensor,
@@ -122,6 +130,8 @@ class MusicTransformerEncoder(nn.Module):
             x,
             src_key_padding_mask=padding_mask
         )
+        pooled = masked_mean_pool(x, attention_mask)
+        vad_pred = self.vad_head(pooled)
 
-        return x
+        return x, vad_pred
         

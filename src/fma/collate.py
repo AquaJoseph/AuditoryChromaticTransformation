@@ -1,5 +1,4 @@
 import torch
-from typing import List
 
 def collate_token_seqs(batch, pad_value: float = -80.0):
     has_labels = isinstance(batch[0], tuple)

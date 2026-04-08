@@ -240,7 +240,7 @@ def train_one_epoch(
         if len(batch) == 3:
             x, mask, labels = batch
             affinity_targets = labels.to(device)
-            vad_targets = labels
+            vad_targets = labels.to(device)
         else:
             x, mask = batch
             affinity_targets = None
@@ -293,7 +293,7 @@ def validate_one_epoch(
             if len(batch) == 3:
                 x, mask, labels = batch
                 affinity_targets = labels.to(device)
-                vad_targets = labels
+                vad_targets = labels.to(device)
             else:
                 x, mask = batch
                 affinity_targets = None

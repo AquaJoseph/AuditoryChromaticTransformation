@@ -41,33 +41,55 @@ class AffinityLoss(nn.Module):
         embeddings = F.normalize(embeddings, dim=-1)
         targets = F.normalize(targets, dim=-1)
 
-        pred_affinity = embeddings @ embeddings.T   # [N, N]
-        true_affinity = targets @ targets.T         # [N, N]
+        pred_affinity = embeddings @ embeddings.T
+        true_affinity = targets @ targets.T
 
         return (pred_affinity - true_affinity).pow(2).mean()
+    
+class VADLoss(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.mse = nn.MSELoss()
+
+    def forward(
+        self,
+        vad_pred: torch.Tensor,
+        vad_target: torch.Tensor
+    ) -> torch.Tensor:
+        return self.mse(vad_pred.float(), vad_target.float())
     
 class HybridLoss(nn.Module):
     def __init__(
         self,
         diversity_weight: float = 1.0,
-        affinity_weight: float = 1.0
+        affinity_weight: float = 0.0,
+        vad_weight: float = 1.0,
     ) -> None:
         super().__init__()
+
         self.diversity_weight = diversity_weight
         self.affinity_weight = affinity_weight
+        self.vad_weight = vad_weight
 
         self.diversity_loss = BatchDiversityLoss()
         self.affinity_loss = AffinityLoss()
+        self.vad_loss = VADLoss()
 
     def forward(
         self,
         sequence_embeddings: torch.Tensor,
         attention_mask: torch.Tensor,
-        affinity_targets: torch.Tensor | None = None
+        vad_pred: torch.Tensor,
+        vad_targets: torch.Tensor,
+        affinity_targets: torch.Tensor | None = None,
     ) -> torch.Tensor:
         pooled = masked_mean_pool(sequence_embeddings, attention_mask)
 
-        total_loss = 0.0
+        total_loss = torch.tensor(
+            0.0,
+            device=sequence_embeddings.device,
+            dtype=sequence_embeddings.dtype
+        )
 
         if self.diversity_weight > 0:
             total_loss = total_loss + (
@@ -81,6 +103,11 @@ class HybridLoss(nn.Module):
                 )
             total_loss = total_loss + (
                 self.affinity_weight * self.affinity_loss(pooled, affinity_targets)
+            )
+
+        if self.vad_weight > 0:
+            total_loss = total_loss + (
+                self.vad_weight * self.vad_loss(vad_pred, vad_targets)
             )
 
         return total_loss

@@ -16,10 +16,10 @@ class TokenMelDataset(Dataset):
         max_tokens: int | None = 128,
         random_crop: bool = True,
     ) -> None:
+        
         self.spectrograms = spectrograms
         self.labels = labels
         self.tokenize = tokenize
-
         self.token_width = token_width
         self.stride = stride
         self.max_tokens = max_tokens
