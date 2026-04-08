@@ -1,35 +1,46 @@
 import torch
 from typing import List
 
-def collate_token_sequence(batch: List[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
-    """
-    Do Doc String
-    """
+def collate_token_seqs(batch, pad_value: float = -80.0):
+    has_labels = isinstance(batch[0], tuple)
 
-    max_len = max(seq.shape[0] for seq in batch)
+    if has_labels:
+        sequences, labels = zip(*batch)
+    else:
+        sequences = batch
+        labels = None
 
-    padded, masks = [], []
+    max_len = max(seq.shape[0] for seq in sequences)
 
-    for seq in batch:
-        token, bins, width = seq.shape
-        pad_len = max_len - token
+    padded = []
+    masks = []
+
+    for seq in sequences:
+        seq_len, n_mels, token_width = seq.shape
+        pad_len = max_len - seq_len
 
         if pad_len > 0:
-            pad = torch.full((pad_len, bins, width), -80.0 , dtype=seq.dtype)
-            seq = torch.cat([seq,pad], dim=0)
-        
-        mask = torch.cat([
-            torch.ones(token, dtype=torch.bool),
-            torch.zeros(pad_len, dtype=torch.bool)
-        ])
+            pad = torch.full(
+                (pad_len, n_mels, token_width),
+                pad_value,
+                dtype=seq.dtype
+            )
+            seq = torch.cat([seq, pad], dim=0)
+
+        mask = torch.zeros(max_len, dtype=torch.bool)
+        mask[:seq_len] = True
 
         padded.append(seq)
         masks.append(mask)
-    
+
     padded_tokens = torch.stack(padded, dim=0)
     attention_mask = torch.stack(masks, dim=0)
 
-    return padded_tokens, attention_mask
+    if labels is None:
+        return padded_tokens, attention_mask
+
+    labels = torch.stack(labels, dim=0)
+    return padded_tokens, attention_mask, labels
 
 
 
