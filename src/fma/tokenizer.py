@@ -24,7 +24,7 @@ def mel_tokenizer(
     if time_steps < token_width: 
         pad = token_width - time_steps
         chunk = F.pad (mel, (0,pad))
-        return chunk.unsequeeze(0)
+        return chunk.unsqueeze(0)
 
 
     for start in range(0, time_steps, stride):
