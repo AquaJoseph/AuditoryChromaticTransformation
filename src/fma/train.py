@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import random_split,DataLoader
 from tqdm import tqdm
 
 from src.fma.mel_token_dataset import TokenMelDataset
@@ -59,6 +59,7 @@ def build_settings(cfg: configparser.ConfigParser) -> dict:
             "data", "npz_path", fallback=r"datasets\fma\mel_vad_dataset.npz"
         ),
         "num_workers": cfg.getint("data", "num_workers", fallback=0),
+        "test_split": cfg.getfloat("data", "test_split", fallback = 0.2),
         "pad_value": cfg.getfloat("tokenizer", "pad_value", fallback=-80.0),
         "token_width": cfg.getint("tokenizer", "token_width", fallback=45),
         "stride": cfg.getint("tokenizer", "stride", fallback=15),
@@ -120,7 +121,7 @@ def build_criterion(settings: dict) -> HybridLoss:
     )
 
 
-def build_dataloader(settings: dict) -> DataLoader:
+def build_dataloaders(settings: dict):
     npz_path = settings["npz_path"]
 
     if not npz_path.exists():
@@ -132,11 +133,6 @@ def build_dataloader(settings: dict) -> DataLoader:
     spectrograms = npz_data["spectrograms"]
     labels = npz_data["labels"] if "labels" in npz_data.files else None
 
-    if settings["use_affinity"] and labels is None:
-        raise ValueError(
-            "Affinity loss is enabled, but no labels were found in the dataset."
-        )
-
     dataset = TokenMelDataset(
         spectrograms=spectrograms,
         labels=labels,
@@ -147,15 +143,49 @@ def build_dataloader(settings: dict) -> DataLoader:
         random_crop=settings["random_crop"],
     )
 
-    return DataLoader(
+    total_size = len(dataset)
+
+    train_size = int((1 - settings["test_split"]) * total_size)
+    remaining = total_size - train_size
+
+    val_size = remaining // 2
+    test_size = remaining - val_size
+
+    train_dataset, val_dataset, test_dataset = random_split(
         dataset,
-        batch_size=settings["batch_size"],
-        shuffle=settings["shuffle"],
-        num_workers=settings["num_workers"],
-        collate_fn=lambda batch: collate_token_seqs(
-            batch, pad_value=settings["pad_value"]
-        ),
+        [train_size, val_size, test_size],
+        generator=torch.Generator().manual_seed(settings["seed"])
     )
+
+    collate_fn = lambda batch: collate_token_seqs(
+        batch, pad_value=settings["pad_value"]
+    )
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=settings["batch_size"],
+        shuffle=True,
+        num_workers=settings["num_workers"],
+        collate_fn=collate_fn,
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=settings["batch_size"],
+        shuffle=False,
+        num_workers=settings["num_workers"],
+        collate_fn=collate_fn,
+    )
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=settings["batch_size"],
+        shuffle=False,
+        num_workers=settings["num_workers"],
+        collate_fn=collate_fn,
+    )
+
+    return train_loader, val_loader, test_loader
 
 
 def build_model(settings: dict) -> MusicTransformerEncoder:
@@ -165,8 +195,7 @@ def build_model(settings: dict) -> MusicTransformerEncoder:
         num_layers=settings["num_layers"],
         dim_feedforward=settings["dim_feedforward"],
         dropout=settings["dropout"],
-        channels=settings["channels"],
-        max_len=settings["max_len"],
+        channels=settings["channels"]
     )
 
 def get_loss_type(settings: dict) -> str:
@@ -242,6 +271,38 @@ def train_one_epoch(
 
     return running_loss / len(loader)
 
+def validate_one_epoch(
+    model,
+    loader,
+    criterion,
+    device,
+):
+    model.eval()
+    running_loss = 0.0
+
+    with torch.no_grad():
+        for batch in loader:
+            if len(batch) == 3:
+                x, mask, affinity_targets = batch
+                affinity_targets = affinity_targets.to(device)
+            else:
+                x, mask = batch
+                affinity_targets = None
+
+            x = x.to(device)
+            mask = mask.to(device)
+
+            seq_embeddings = model(x, mask)
+
+            loss = criterion(
+                sequence_embeddings=seq_embeddings,
+                attention_mask=mask,
+                affinity_targets=affinity_targets,
+            )
+
+            running_loss += loss.item()
+
+    return running_loss / len(loader)
 
 def save_epoch_checkpoint(
     model: torch.nn.Module,
@@ -273,6 +334,7 @@ def save_final_model(model: torch.nn.Module) -> None:
 
 def save_training_log(
     epoch_losses: list[float],
+    val_losses: list[float],
     settings: dict,
 ) -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -289,8 +351,10 @@ def save_training_log(
     log_path = LOG_DIR / log_name
 
     log_data = {
-        "epoch_losses": epoch_losses,
-        "final_loss": epoch_losses[-1] if epoch_losses else None,
+        "train_losses": epoch_losses,
+        "val_losses": val_losses,
+        "final_train_loss": epoch_losses[-1] if epoch_losses else None,
+        "val_losses": val_losses[-1] if val_losses else None,
         "epochs": settings["epochs"],
         "batch_size": settings["batch_size"],
         "learning_rate": settings["learning_rate"],
@@ -306,21 +370,23 @@ def save_training_log(
 def main() -> None:
     cfg = load_config(CONFIG_PATH)
     settings = build_settings(cfg)
+    print(f"device={settings['device']}")
 
     set_seed(settings["seed"])
 
-    loader = build_dataloader(settings)
+    train_loader, val_loader, _ = build_dataloaders(settings)
     model = build_model(settings).to(settings["device"])
     criterion = build_criterion(settings)
     optimizer = build_optimizer(model, settings)
 
     epoch_losses = []
+    val_losses = []
     epoch_bar = tqdm(range(settings["epochs"]), desc="Epochs", position=0)
 
     for epoch in epoch_bar:
         train_loss = train_one_epoch(
             model=model,
-            loader=loader,
+            loader=train_loader,
             optimizer=optimizer,
             criterion=criterion,
             device=settings["device"],
@@ -330,14 +396,23 @@ def main() -> None:
             log_every=settings["log_every"],
         )
 
+        val_loss = validate_one_epoch(
+        model=model,
+        loader=val_loader,
+        criterion=criterion,
+        device=settings["device"],
+        )
+        
+
         epoch_losses.append(train_loss)
-        epoch_bar.set_postfix(train_loss=f"{train_loss:.4f}")
+        val_losses.append(val_loss)
+        epoch_bar.set_postfix(train_loss=f"{train_loss:.4f}", val= f"{val_loss:.4f}")
 
         if (epoch + 1) % settings["save_every"] == 0:
             save_epoch_checkpoint(model, optimizer, epoch, train_loss)
 
     save_final_model(model)
-    save_training_log(epoch_losses, settings)
+    save_training_log(epoch_losses, val_losses, settings)
 
 
 if __name__ == "__main__":
