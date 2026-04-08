@@ -23,7 +23,7 @@ def mel_tokenizer(
 
     if time_steps < token_width: 
         pad = token_width - time_steps
-        chunk = F.pad (mel, (0,pad))
+        chunk = F.pad(mel, (0, pad), value=-80.0)
         return chunk.unsqueeze(0)
 
 
@@ -36,7 +36,7 @@ def mel_tokenizer(
 
         if chunk.shape[1] < token_width:
             pad = token_width - chunk.shape[1]
-            chunk = F.pad(chunk, (0, pad))
+            chunk = F.pad(chunk, (0, pad), value=-80.0)
 
         tokens.append(chunk)
 
