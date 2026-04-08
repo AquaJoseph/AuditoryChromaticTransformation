@@ -32,7 +32,7 @@ class BatchDiversityLoss(nn.Module):
 class AffinityLoss(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        
+
     def forward(
         self,
         embeddings: torch.Tensor,
@@ -44,3 +44,42 @@ class AffinityLoss(nn.Module):
         true_affinity = targets @ targets.T         # [N, N]
 
         return torch.norm(pred_affinity - true_affinity, p="fro") ** 2
+    
+class HybridLoss(nn.Module):
+    def __init__(
+        self,
+        diversity_weight: float = 1.0,
+        affinity_weight: float = 1.0
+    ) -> None:
+        super().__init__()
+        self.diversity_weight = diversity_weight
+        self.affinity_weight = affinity_weight
+
+        self.diversity_loss = BatchDiversityLoss()
+        self.affinity_loss = AffinityLoss()
+
+    def forward(
+        self,
+        sequence_embeddings: torch.Tensor,
+        attention_mask: torch.Tensor,
+        affinity_targets: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        pooled = masked_mean_pool(sequence_embeddings, attention_mask)
+
+        total_loss = 0.0
+
+        if self.diversity_weight > 0:
+            total_loss = total_loss + (
+                self.diversity_weight * self.diversity_loss(pooled)
+            )
+
+        if self.affinity_weight > 0:
+            if affinity_targets is None:
+                raise ValueError(
+                    "affinity_targets must be provided when affinity_weight > 0."
+                )
+            total_loss = total_loss + (
+                self.affinity_weight * self.affinity_loss(pooled, affinity_targets)
+            )
+
+        return total_loss
