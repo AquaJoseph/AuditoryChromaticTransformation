@@ -88,6 +88,7 @@ def build_settings(cfg: configparser.ConfigParser) -> dict:
         "use_affinity": cfg.getboolean("loss", "use_affinity", fallback=False),
         "diversity_weight": cfg.getfloat("loss.diversity", "weight", fallback=1.0),
         "affinity_weight": cfg.getfloat("loss.affinity", "weight", fallback=1.0),
+        "vad_weight": cfg.getfloat("loss.vad", "weight", fallback=1.0),
     }
     return settings
 
@@ -114,10 +115,12 @@ def build_criterion(settings: dict) -> HybridLoss:
 
     diversity_weight = settings["diversity_weight"] if settings["use_diversity"] else 0.0
     affinity_weight = settings["affinity_weight"] if settings["use_affinity"] else 0.0
+    vad_weight = settings["vad_weight"] if settings["vad_weight"] else 0.0
 
     return HybridLoss(
         diversity_weight=diversity_weight,
         affinity_weight=affinity_weight,
+        vad_weight = vad_weight
     )
 
 
@@ -235,22 +238,27 @@ def train_one_epoch(
 
     for batch_idx, batch in batch_bar:
         if len(batch) == 3:
-            x, mask, affinity_targets = batch
-            affinity_targets = affinity_targets.to(device)
+            x, mask, labels = batch
+            affinity_targets = labels.to(device)
+            vad_targets = labels
         else:
             x, mask = batch
             affinity_targets = None
+            vad_targets = None
 
         x = x.to(device)
         mask = mask.to(device)
 
         optimizer.zero_grad(set_to_none=True)
 
-        seq_embeddings = model(x, mask)
+        seq_embeddings, vad_pred = model(x, mask)
+
         loss = criterion(
             sequence_embeddings=seq_embeddings,
             attention_mask=mask,
-            affinity_targets=affinity_targets,
+            vad_pred=vad_pred,
+            vad_targets=vad_targets,
+            affinity_targets=affinity_targets if criterion.affinity_weight > 0 else None,
         )
 
         loss.backward()
@@ -283,21 +291,25 @@ def validate_one_epoch(
     with torch.no_grad():
         for batch in loader:
             if len(batch) == 3:
-                x, mask, affinity_targets = batch
-                affinity_targets = affinity_targets.to(device)
+                x, mask, labels = batch
+                affinity_targets = labels.to(device)
+                vad_targets = labels
             else:
                 x, mask = batch
                 affinity_targets = None
+                vad_targets = labels
 
             x = x.to(device)
             mask = mask.to(device)
 
-            seq_embeddings = model(x, mask)
+            seq_embeddings, vad_pred = model(x, mask)
 
             loss = criterion(
                 sequence_embeddings=seq_embeddings,
                 attention_mask=mask,
-                affinity_targets=affinity_targets,
+                vad_pred=vad_pred,
+                vad_targets=vad_targets,
+                affinity_targets=affinity_targets if criterion.affinity_weight > 0 else None,
             )
 
             running_loss += loss.item()
@@ -354,7 +366,7 @@ def save_training_log(
         "train_losses": epoch_losses,
         "val_losses": val_losses,
         "final_train_loss": epoch_losses[-1] if epoch_losses else None,
-        "val_losses": val_losses[-1] if val_losses else None,
+        "final_val_loss": val_losses[-1] if val_losses else None,
         "epochs": settings["epochs"],
         "batch_size": settings["batch_size"],
         "learning_rate": settings["learning_rate"],
@@ -381,6 +393,7 @@ def main() -> None:
 
     epoch_losses = []
     val_losses = []
+
     epoch_bar = tqdm(range(settings["epochs"]), desc="Epochs", position=0)
 
     for epoch in epoch_bar:
