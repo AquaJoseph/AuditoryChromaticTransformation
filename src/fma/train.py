@@ -135,7 +135,8 @@ def build_dataloaders(settings: dict):
 
     spectrograms = npz_data["spectrograms"]
     labels = npz_data["labels"] if "labels" in npz_data.files else None
-
+    labels = (labels - labels.min()) / (labels.max() - labels.min())
+    
     dataset = TokenMelDataset(
         spectrograms=spectrograms,
         labels=labels,

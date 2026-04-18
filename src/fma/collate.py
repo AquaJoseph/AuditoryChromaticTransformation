@@ -40,9 +40,3 @@ def collate_token_seqs(batch, pad_value: float = -80.0):
 
     labels = torch.stack(labels, dim=0)
     return padded_tokens, attention_mask, labels
-
-
-
-
-
-
