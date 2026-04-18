@@ -64,17 +64,7 @@ merged["rgb"] = merged["color"].apply(parse_rgb)
 merged = merged[merged["rgb"].notna()].copy()
 merged[["r", "g", "b"]] = pd.DataFrame(merged["rgb"].tolist(), index=merged.index)
 
-final_df = (
-    merged.groupby("emotion", as_index=False)
-    .agg({
-        "valence": "mean",
-        "arousal": "mean",
-        "dominance": "mean",
-        "r": "mean",
-        "g": "mean",
-        "b": "mean",
-    })
-)
+final_df = merged[["emotion", "valence", "arousal", "dominance", "r", "g", "b"]].copy()
 
 SAVE_PATH = ROOT / "datasets" / "nrc-emo-color" / "vad_rgb_dataset.csv"
 SAVE_PATH.parent.mkdir(parents=True, exist_ok=True)
