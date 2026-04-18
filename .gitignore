@@ -1,0 +1,11 @@
+datasets/
+plots/
+
+src/muse/__pycache__
+
+logs/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+example/
