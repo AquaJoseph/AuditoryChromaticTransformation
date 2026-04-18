@@ -14,7 +14,6 @@ from tqdm import tqdm
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CONFIG_PATH = ROOT / "src" / "colour" / "config.cfg"
-DATA_PATH = ROOT / "datasets" / "colour" / "vad_rgb_dataset.csv"
 CHECKPOINT_DIR = ROOT / "checkpoints" / "colour"
 LOG_DIR = ROOT / "logs" / "vad_color"
 
@@ -215,4 +214,5 @@ def main() -> None:
         json.dump(log_data, f, indent=4)
 
 
-
+if __name__ == "__main__":
+    main()
