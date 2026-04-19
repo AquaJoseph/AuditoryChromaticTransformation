@@ -1,0 +1,10 @@
+datasets/
+plots/
+
+__pycache__/
+mp4_out/
+logs/
+example/
+checkpoints/
+
+.vscode/
