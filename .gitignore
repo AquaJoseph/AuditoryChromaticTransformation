@@ -13,3 +13,5 @@ checkpoints/
 !src/**
 __pycache__/
 *.pyc
+
+!.gitignore
