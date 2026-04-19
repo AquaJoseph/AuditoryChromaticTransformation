@@ -8,3 +8,8 @@ example/
 checkpoints/
 
 .vscode/
+
+!src/
+!src/**
+__pycache__/
+*.pyc
