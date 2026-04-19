@@ -1,11 +1,10 @@
 datasets/
 plots/
 
-src/muse/__pycache__
-
+__pycache__/
+mp4_out/
 logs/
-checkpoints/
-*.pt
-*.pth
-*.ckpt
 example/
+checkpoints/
+
+.vscode/
