@@ -1,6 +1,9 @@
 """Training entrypoint and loop utilities for MuSe VAD regression."""
 
 import configparser
+import json
+import warnings
+from datetime import datetime, timezone
 import warnings
 from pathlib import Path
 
@@ -114,6 +117,8 @@ def validate_epoch(
                 device=device,
             )
             total_loss += loss.item()
+
+    return total_loss / len(dataloader)
 
     return total_loss / len(dataloader)
 
@@ -242,6 +247,15 @@ def main() -> None:
         train_losses.append(train_loss)
         val_losses.append(val_loss)
 
+def load_config(config_path: Path) -> configparser.ConfigParser:
+    """Template docstring.
+
+    Args:
+        config_path: TODO.
+
+    Returns:
+        configparser.ConfigParser: TODO.
+    """
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save(model.state_dict(), checkpoint_dir / "best_bert_vad.pt")
@@ -269,6 +283,11 @@ def load_config(config_path: Path) -> configparser.ConfigParser:
 
 
 def main() -> None:
+    """Template docstring.
+
+    Summary:
+        TODO: Describe end-to-end training workflow and side effects.
+    """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     config = load_config(Path("src/muse/config.cfg"))
@@ -336,6 +355,71 @@ def main() -> None:
     best_val_loss = float("inf")
     train_losses: list[float] = []
     val_losses: list[float] = []
+    test_losses: list[float] = []
+
+    run_tag = (
+        f"epochs_{epochs}_batch_{batch_size}_"
+        f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    )
+
+    checkpoint_dir = Path("checkpoints/muse/bert-large-uncased-saves")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+
+    test_split = config.getfloat("data", "test_split")
+
+    df = load_dataframe("datasets/muse/modified/bert_df.parquet")
+
+    train_df, temp_df = train_test_split(df, test_size=test_split, random_state=42)
+    val_df, test_df = train_test_split(temp_df, test_size=0.5, random_state=42)
+
+    tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
+
+    datasets = {
+        "train": build_dataset(
+            train_df,
+            tokenizer,
+            prompt_col=prompt_col,
+            label_col=label_col,
+            max_len=max_len,
+        ),
+        "val": build_dataset(
+            val_df,
+            tokenizer,
+            prompt_col=prompt_col,
+            label_col=label_col,
+            max_len=max_len,
+        ),
+        "test": build_dataset(
+            test_df,
+            tokenizer,
+            prompt_col=prompt_col,
+            label_col=label_col,
+            max_len=max_len,
+        ),
+    }
+
+    dataloaders = {
+        "train": build_loader(datasets["train"], batch_size, True),
+        "val": build_loader(datasets["val"], batch_size, False),
+        "test": build_loader(datasets["test"], batch_size, False),
+    }
+
+    model = BertVADRegressor(model_name=config["model"]["name"]).to(device=device)
+
+    for param in model.bert.parameters():
+        param.requires_grad = False
+
+    criterion = nn.MSELoss()
+
+    optimizer = AdamW(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=learning_rate,
+    )
+
+    best_val_loss = float("inf")
+    train_losses: list[float] = []
+    val_losses: list[float] = []
 
     checkpoint_dir = Path("checkpoints/muse/bert-large-uncased-saves")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -344,6 +428,81 @@ def main() -> None:
         if epoch == unfreeze_epoch:
             for param in model.bert.parameters():
                 param.requires_grad = True
+
+            optimizer = AdamW(
+                filter(lambda p: p.requires_grad, model.parameters()),
+                lr=learning_rate,
+            )
+
+        train_loss = train_epoch(
+            model=model,
+            dataloader=dataloaders["train"],
+            criterion=criterion,
+            optimizer=optimizer,
+            device=device,
+        )
+        val_loss = validate_epoch(
+            model=model,
+            dataloader=dataloaders["val"],
+            criterion=criterion,
+            device=device,
+        )
+        test_loss = validate_epoch(
+            model=model,
+            dataloader=dataloaders["test"],
+            criterion=criterion,
+            device=device,
+        )
+
+        print(
+            f"Epoch {epoch + 1}/{epochs} | "
+            f"Train Loss: {train_loss:.4f} | "
+            f"Val Loss: {val_loss:.4f} | "
+            f"Test Loss: {test_loss:.4f}"
+        )
+
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        test_losses.append(test_loss)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save(model.state_dict(), checkpoint_dir / "best_bert_vad.pt")
+
+    torch.save(model.state_dict(), checkpoint_dir / "final_bert_vad.pt")
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(1, epochs + 1), train_losses, label="Training Loss")
+    plt.plot(range(1, epochs + 1), val_losses, label="Validation Loss")
+    plt.plot(range(1, epochs + 1), test_losses, label="Test Loss")
+
+    plt.title("Training vs Validation Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.tight_layout()
+
+    plot_dir = Path("plots/muse/train")
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    plot_name = f"loss_curves_{run_tag}.png"
+    plt.savefig(plot_dir / plot_name, dpi=300, bbox_inches="tight")
+
+    metrics_dir = Path("metrics/muse/train")
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    metrics_path = metrics_dir / f"losses_{run_tag}.json"
+    metrics = {
+        "run_tag": run_tag,
+        "epochs": epochs,
+        "batch_size": batch_size,
+        "learning_rate": learning_rate,
+        "best_val_loss": best_val_loss,
+        "train_losses": train_losses,
+        "val_losses": val_losses,
+        "test_losses": test_losses,
+    }
+    metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+
+
 
             optimizer = AdamW(
                 filter(lambda p: p.requires_grad, model.parameters()),
