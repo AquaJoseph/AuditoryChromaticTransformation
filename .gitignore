@@ -1,10 +1,11 @@
-datasets/
-plots/
+# Ignore everything
+*
 
-__pycache__/
-mp4_out/
-logs/
-example/
-checkpoints/
+# Allow src
+!src/
 
-.vscode/
+# Allow files inside src
+!src/**
+
+# Keep gitignore itself
+!.gitignore
