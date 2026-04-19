@@ -55,10 +55,16 @@ def load_dataframe(file_path: str) -> pd.DataFrame: return pd.read_parquet(path=
 
 def build_dataset(
         df : pd.DataFrame, 
-        tokenizer : PreTrainedTokenizer | PreTrainedTokenizerFast) -> MuSeDataset: 
+        tokenizer : PreTrainedTokenizer | PreTrainedTokenizerFast,
+        prompt_col: str = "prompt",
+        label_col: str = "vad",
+        max_len: int = 128) -> MuSeDataset: 
      return MuSeDataset(
             df=df, 
-            tokenizer=tokenizer)
+            tokenizer=tokenizer,
+            prompt_col=prompt_col,
+            label_col=label_col,
+            max_len=max_len)
 
 def build_loader(
         dataset : MuSeDataset, 
