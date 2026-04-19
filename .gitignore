@@ -3,9 +3,11 @@
 
 # Allow src
 !src/
-
-# Allow files inside src
 !src/**
-src\__pycache__\**
-# Keep gitignore itself
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Keep gitignore
 !.gitignore
