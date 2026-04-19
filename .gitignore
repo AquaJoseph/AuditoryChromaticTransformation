@@ -6,6 +6,6 @@
 
 # Allow files inside src
 !src/**
-
+src\__pycache__\**
 # Keep gitignore itself
 !.gitignore
