@@ -4,6 +4,18 @@ import torch.nn as nn
 from transformers import BertModel
 
 class BertVADRegressor(nn.Module):
+    """Template docstring.
+
+    Summary:
+        TODO: Describe architecture and output semantics.
+
+    Args:
+        model_name: TODO.
+        dropout: TODO.
+        output_dim: TODO.
+        hidden_dim: TODO.
+    """
+
     def __init__(
             self,
             model_name: str = "bert-large-uncased",
@@ -30,6 +42,15 @@ class BertVADRegressor(nn.Module):
         self,
         input_ids : torch.Tensor,
         attention_mask : torch.Tensor)-> torch.Tensor:
+        """Template docstring.
+
+        Args:
+            input_ids: TODO.
+            attention_mask: TODO.
+
+        Returns:
+            torch.Tensor: TODO.
+        """
 
         outputs = self.bert(
             input_ids=input_ids,

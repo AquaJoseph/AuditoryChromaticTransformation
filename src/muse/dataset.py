@@ -1,4 +1,4 @@
-## Make Doc Strings Later on
+"""Dataset utilities for MuSe VAD training."""
 
 import pandas as pd
 import torch
@@ -9,6 +9,23 @@ from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 
 class MuSeDataset(Dataset):
+    """Template docstring.
+
+    Summary:
+        TODO: Describe dataset purpose and expected input schema.
+
+    Args:
+        df: TODO.
+        tokenizer: TODO.
+        prompt_col: TODO.
+        label_col: TODO.
+        max_len: TODO.
+
+    Raises:
+        ValueError: TODO.
+        TypeError: TODO.
+    """
+
     def __init__(
             self,
             df : pd.DataFrame,
@@ -29,9 +46,27 @@ class MuSeDataset(Dataset):
 
         self.max_len = max_len
 
-    def __len__(self) -> int : return len(self.df)
+    def __len__(self) -> int:
+        """Template docstring.
+
+        Returns:
+            int: TODO.
+        """
+        return len(self.df)
 
     def __getitem__(self, index : int) -> dict[str, torch.Tensor]:
+        """Template docstring.
+
+        Args:
+            index: TODO.
+
+        Returns:
+            dict[str, torch.Tensor]: TODO.
+
+        Raises:
+            TypeError: TODO.
+            ValueError: TODO.
+        """
         prompt = self.df.loc[index, self.prompt_col]
         label = self.df.loc[index, self.label_col]
 
@@ -51,20 +86,59 @@ class MuSeDataset(Dataset):
 
         return item
 
-def load_dataframe(file_path: str) -> pd.DataFrame: return pd.read_parquet(path=file_path)
+def load_dataframe(file_path: str) -> pd.DataFrame:
+    """Template docstring.
+
+    Args:
+        file_path: TODO.
+
+    Returns:
+        pd.DataFrame: TODO.
+    """
+    return pd.read_parquet(path=file_path)
 
 def build_dataset(
         df : pd.DataFrame, 
-        tokenizer : PreTrainedTokenizer | PreTrainedTokenizerFast) -> MuSeDataset: 
-     return MuSeDataset(
-            df=df, 
-            tokenizer=tokenizer)
+        tokenizer : PreTrainedTokenizer | PreTrainedTokenizerFast,
+        prompt_col: str = "prompt",
+        label_col: str = "vad",
+        max_len: int = 128) -> MuSeDataset:
+    """Template docstring.
+
+    Args:
+        df: TODO.
+        tokenizer: TODO.
+        prompt_col: TODO.
+        label_col: TODO.
+        max_len: TODO.
+
+    Returns:
+        MuSeDataset: TODO.
+    """
+    return MuSeDataset(
+        df=df,
+        tokenizer=tokenizer,
+        prompt_col=prompt_col,
+        label_col=label_col,
+        max_len=max_len,
+    )
 
 def build_loader(
         dataset : MuSeDataset, 
         batch_size : int, 
-        shuffle : bool) -> DataLoader : 
-     return DataLoader(
-            dataset=dataset, 
-            batch_size=batch_size, 
-            shuffle=shuffle)
+        shuffle : bool) -> DataLoader:
+    """Template docstring.
+
+    Args:
+        dataset: TODO.
+        batch_size: TODO.
+        shuffle: TODO.
+
+    Returns:
+        DataLoader: TODO.
+    """
+    return DataLoader(
+        dataset=dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+    )
